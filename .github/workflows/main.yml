@@ -1,0 +1,59 @@
+name: Build EXE
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    # windows-2019 比 windows-latest 更稳定,也是 GitHub 免费额度内的
+    # 对公开仓库完全免费;私有仓库也消耗同样的 Windows 分钟数
+    runs-on: windows-2019
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'   # 3.11 打包体积小、兼容性好
+          architecture: 'x64'
+          cache: 'pip'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          # 如果你的脚本有依赖,取消下面注释并修改:
+          # pip install -r requirements.txt
+
+      - name: Build with PyInstaller
+        shell: pwsh
+        run: |
+          # --onefile: 打包成单个 exe
+          # --noconsole: 不显示黑窗口(GUI 程序用;CLI 程序请删除此项)
+          # --name: 生成的 exe 名字
+          pyinstaller --onefile --noconsole --name PyEditPro PyEditPro.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PyEditPro-windows
+          path: dist/PyEditPro.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Release (仅在打 tag 时)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/PyEditPro.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
